@@ -7,6 +7,8 @@ using System.Text;
 using System.Drawing;
 using static TestconsoleApp1.RegexGenerator;
 using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.Runtime.Serialization;
 
 namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 {
@@ -14,20 +16,47 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 	{
 		public static int Main_(string[] args)
 		{
-			File.WriteAllText("samples.txt", SamplesGenerator.GenerateSamples());
-			File.WriteAllText("rules.txt", RegexGenerator.GenerateSecretRules());
+			var rules = RegexGenerator.Generate((k,v) => $"{k}#{v}").Split(Environment.NewLine).Where(t => !string.IsNullOrEmpty(t)).Select(t => t.Split("#")).ToDictionary(t => t[0], t => t[1]);
+			var samples = SamplesGenerator.Generate((k,v) => $"{k}#{v}").Split(Environment.NewLine).Where(t => !string.IsNullOrEmpty(t)).Select(t => t.Split("#")).ToList();
+			var sb = new StringBuilder();
+			foreach (var key in rules.Keys.OrderBy(t => t))
+			{
+				string rule = rules[key];
+				var sample = (samples.FirstOrDefault(t => t[0] == key)?[1]) ?? "";
+				if (sample == "") { Console.WriteLine(key); }
+				sb.AppendLine($"Rule     : {key}");
+				sb.AppendLine($"  Regex  : {rule}");
+				sb.AppendLine($"  Sample : {sample}");
+				sb.AppendLine();
+			}
+			File.WriteAllText("rules-file.txt", sb.ToString());
+
+
+			File.WriteAllText("samples.txt", SamplesGenerator.Generate());
+			File.WriteAllText("rules.txt", RegexGenerator.Generate());
 
 			return 0;
 		}
 
 	}
 
+
 	static class SamplesGenerator
 	{
-		static StringBuilder samples = new StringBuilder();
+		static StringBuilder sb = new StringBuilder();
+		private static Func<string, string, string> _formatter = (k, v) => $"{k} : {v}";
 
-		public static string GenerateSamples()
+		static string Scramble(string secret)
 		{
+			int pos = secret.Length / 2;
+			return $"{secret.Substring(0, pos)}[[DD_SECRET]]{secret.Substring(pos)}";
+		}
+
+		public static string Generate(Func<string, string, string>? formatter = null)
+		{
+			sb = new StringBuilder();
+			_formatter = formatter ?? ((k, v) => $"[InlineData(\"{k}\", @\"{Scramble(v)}\")]");
+
 			// Console.WriteLine();
 			//generateSampleSecret("generic-api-key", SemiGenericRegex(new string[] { "key", "api", "token", "secret", "client", "passwd", "password", "auth", "access" }, () => Reggen(@"[0-9a-z\-_.=]", 10, 150, true)));
 
@@ -79,8 +108,6 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			generateSampleSecret("jwt", Reggen(@"ey[a-zA-Z0-9]{17,20}\.ey[a-zA-Z0-9\/\_-]{17,30}\.[a-zA-Z0-9\/\_-]{10,20}[=]{0,2}")); //UniqueTokenRegex(@"ey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9\/\_-]{17,}\.(?:[a-zA-Z0-9\/\_-]{10,}={0,2})?", false));
 			generateSampleSecret("jwt", Reggen(@"ey[a-zA-Z0-9]{17,20}\.ey[a-zA-Z0-9\/\_-]{17,30}\.")); //UniqueTokenRegex(@"ey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9\/\_-]{17,}\.(?:[a-zA-Z0-9\/\_-]{10,}={0,2})?", false));
 
-			//generateSampleSecret("jwt-base64", @"-----BEGIN PGP PUBLIC KEY BLOCK-----\r\nVersion: GnuPG/MacGPG2 v2\r\nComment: GPGTools - https://gpgtools.org\r\n\r\nmQENBFOrMNcBCAC+gLI4s3bUkobS5NpOQbWfjWXbqC0Ixpc5bZYDOvsmfstmswna\r\nUWUXkRH9RONabzrAu4TGvW0f5DkC2fuWWHJhZWEccn+VE83+avMZN4/mzldSXPNX\r\nA6F7+wHb1DjG+FCDcxMghkwDjGc16LOtZGufUo5iRQaC5pmNBOgDWdiObGPKOTEL\r\n/uU8zLtKi2cibbkhRm22IGOzGyZMZN6zvEtPzlCp3eZEGMW0Ig+kbl6SaSDrSJNK\r\nwElYcr/kJ9QF6CQ2iwZCGeL2jH5QaOi5uj1LXONpCd9nPeyDXc+Z20gXZiqkwRLc\r\nIBPKza6hq/+4nwHBq8DNLv0W4xNC59jLbIhpABEBAAG0LEZyYW5rIE5vdGhhZnQg\r\nPGZub3RoYWZ0QGFsdW1uaS5zdGFuZm9yZC5lZHU+iQE9BBMBCgAnBQJTqzDXAhsD\r\nBQkHhh+ABQsJCAcDBRUKCQgLBRYCAwEAAh4BAheAAAoJECqYOYG1w7FJOr4IAK8x\r\nec4jbjd6jkKe0YJGdPzg6TM73ISV5VrUlJX7O3jgxHB4M8KIHN/8A/+ZxLk7WM96\r\niq0C8atWHkCkQBtNduWhzAFccQlpxrrb18T5/oItcrmX9Dx2H5WeIl4WAoqe0MTk\r\niMPv29RMMH9RJvXL0ihuuH4Z0VxV5nurI9QmGzG69QOzfP9qY1EfQEceO7OqXXvY\r\nvvBEUbmWshLuHJ6tOQY5ib3+aLO7m+yJTgJ7s6DHBDqLhqJPW0g7jiJcrDhYXsoS\r\nJMMhMdUhckeZfTXm1N3Dc+/t9/E8NZjdZ2q/ZZzvygC4mu0uihwBKFqoFvXCHRaW\r\nRf4uYxE+/Upna/mbXQi5AQ0EU6sw1wEIALSp9Cc4t/F2k+rwEfEMXihXLcLM9Dmh\r\nukz++kMSCSuq4QHE+I4rLda/lVSNJCXaXrGVkzJuzmpEeQFdhr6nLW9ZYhzK8FIc\r\nYyfsYTQxXUVf5W4e/XfKNoG9lrwQd5XHxJTBJ57XjjoWJYPQ69NWH8622foOBpux\r\nxewgR2LEFgl+ksu7aQL4cQif6D3dko3EiIf1t0LDBXxFEREFCg+vkDFsDIW5bdaI\r\nmDYwewGj7dAPLuo0sx1We+uBxb+j30xw/ASDOBhO3ratQWs+4w2FC7gw7cuf0CJC\r\n/hMEw8nloGsIbqBmAnLdlQBxkfFG9DqRBNdSUM8xI66F0eGaaPHJ/S8AEQEAAYkB\r\nJQQYAQoADwUCU6sw1wIbDAUJB4YfgAAKCRAqmDmBtcOxSZvvB/4w6S5YZQUmDVYK\r\n9HPOm49qWxGPd5dLHr2g388sJ4LDK98Q9oicHgf2R35OXTyqhv4kFJL3eukQ6oLW\r\nQOqQKLRycrQUu7eSESAiVmJ1gbuXLAWJmvUABGSYzj3BjWQRexYW/MZ51XqNftF9\r\noOSAoFWrdqeJbHoxPTXIb6P8EWk4Ei2j2bSIfBBSbBMSB6Kfk9IjpISM8+97RS5o\r\n6605rmM5MY1Lz8cq8AZIYJs/MnUCZrpQ0c9QSWrflHAeWAy6xMGfdSynbEExQ4z8\r\nAIfKWMro74nRFbAnv/BzrF2R8uHmdE7T6q9ZZsAydlaxQbdmyhCeGAdw93CwAypb\r\nvHVobJ8A\r\n=mIC1\r\n-----END PGP PUBLIC KEY BLOCK-----"); //MustCompile(@"\bZXlK(?:(?P<alg>aGJHY2lPaU)|(?P<apu>aGNIVWlPaU)|(?P<apv>aGNIWWlPaU)|(?P<aud>aGRXUWlPaU)|(?P<b64>aU5qUWlP)|(?P<crit>amNtbDBJanBi)|(?P<cty>amRIa2lPaU)|(?P<epk>bGNHc2lPbn)|(?P<enc>bGJtTWlPaU)|(?P<jku>cWEzVWlPaU)|(?P<jwk>cWQyc2lPb)|(?P<iss>cGMzTWlPaU)|(?P<iv>cGRpSTZJ)|(?P<kid>cmFXUWlP)|(?P<key_ops>clpYbGZiM0J6SWpwY)|(?P<kty>cmRIa2lPaUp)|(?P<nonce>dWIyNWpaU0k2)|(?P<p2c>d01tTWlP)|(?P<p2s>d01uTWlPaU)|(?P<ppt>d2NIUWlPaU)|(?P<sub>emRXSWlPaU)|(?P<svt>emRuUWlP)|(?P<tag>MFlXY2lPaU)|(?P<typ>MGVYQWlPaUp)|(?P<url>MWNtd2l)|(?P<use>MWMyVWlPaUp)|(?P<ver>MlpYSWlPaU)|(?P<version>MlpYSnphVzl1SWpv)|(?P<x>NElqb2)|(?P<x5c>NE5XTWlP)|(?P<x5t>NE5YUWlPaU)|(?P<x5ts256>NE5YUWpVekkxTmlJNkl)|(?P<x5u>NE5YVWlPaU)|(?P<zip>NmFYQWlPaU))[a-zA-Z0-9\/\_+\-\r\n]{40,}={0,2}"));
-
 			generateSampleSecret("linear-api-key", Reggen(@"lin_api_[a-z0-9]{40}")); //MustCompile(@"lin_api_(?i)[a-z0-9]{40}"));
 			generateSampleSecret("npm-access-token", Reggen(@"npm_[a-z0-9]{36}")); //UniqueTokenRegex(@"npm_[a-z0-9]{36}", true));
 			generateSampleSecret("openai-api-key", Reggen(@"sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}")); //UniqueTokenRegex(@"sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}", true));
@@ -102,7 +129,6 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			generateSampleSecret("shopify-access-token", Reggen(@"shpat_[a-fA-F0-9]{32}")); //MustCompile(@"shpat_[a-fA-F0-9]{32}"));
 			generateSampleSecret("shopify-custom-access-token", Reggen(@"shpca_[a-fA-F0-9]{32}")); //MustCompile(@"shpca_[a-fA-F0-9]{32}"));
 			generateSampleSecret("shopify-private-app-access-token", Reggen(@"shppa_[a-fA-F0-9]{32}")); //MustCompile(@"shppa_[a-fA-F0-9]{32}"));
-			//generateSampleSecret("sidekiq-sensitive-url", Reggen(@"")); //MustCompile(@"(?i)\b(http(?:s??):\/\/)([a-f0-9]{8}:[a-f0-9]{8})@(?:gems.contribsys.com|enterprise.contribsys.com)(?:[\/|\#|\?|:]|$)"));
 			generateSampleSecret("slack-bot-token", Reggen(@"xoxb-[0-9]{10,13}\-[0-9]{10,13}[a-zA-Z0-9-]{0,10}")); //MustCompile(@"(xoxb-[0-9]{10,13}\-[0-9]{10,13}[a-zA-Z0-9-]*)"));
 			generateSampleSecret("slack-user-token", Reggen(@"xox[pe]{1}-[0-9]{10,13}-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9-]{28,34}")); //MustCompile(@"(xox[pe](?:-[0-9]{10,13}){3}-[a-zA-Z0-9-]{28,34})"));
 			generateSampleSecret("slack-app-token", Reggen(@"xapp-[0-9]{1}-[A-Z0-9]{1,5}-[0-9]{1,5}-[a-z0-9]{1,5}")); //MustCompile(@"(?i)(xapp-\d-[A-Z0-9]+-\d+-[a-z0-9]+)"));
@@ -121,12 +147,13 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			generateSampleSecret("stripe-access-token", Reggen(@"sk_live_[0-9a-z]{10,32}")); //MustCompile(@"(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}"));
 			generateSampleSecret("stripe-access-token", Reggen(@"pk_test_[0-9a-z]{10,32}")); //MustCompile(@"(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}"));
 			generateSampleSecret("stripe-access-token", Reggen(@"pk_live_[0-9a-z]{10,32}")); //MustCompile(@"(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}"));
-			//generateSampleSecret("microsoft-teams-webhook", Reggen(@"")); //MustCompile(@"https:\/\/[a-z0-9]+\.webhook\.office\.com\/webhookb2\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}@[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}\/IncomingWebhook\/[a-z0-9]{32}\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}"));
-			//generateSampleSecret("telegram-bot-api-token", Reggen(@"")); //MustCompile(@"(?i)(?:^|[^0-9])([0-9]{5,16}:A[a-zA-Z0-9_\-]{34})(?:$|[^a-zA-Z0-9_\-])"));
+			generateSampleSecret("telegram-bot-api-token", Reggen(Numeric(8) + ":A" + AlphaNumericExtendedShort(34))); //MustCompile(@"(?i)(?:^|[^0-9])([0-9]{5,16}:A[a-zA-Z0-9_\-]{34})(?:$|[^a-zA-Z0-9_\-])"));
 			generateSampleSecret("twilio-api-key", Reggen(@"SK[0-9a-fA-F]{32}")); //MustCompile(@"SK[0-9a-fA-F]{32}"));
 			generateSampleSecret("vault-service-token", Reggen(@"hvs\.[a-z0-9_-]{90,100}")); //UniqueTokenRegex(@"hvs\.[a-z0-9_-]{90,100}", true));
 			generateSampleSecret("vault-batch-token", Reggen(@"hvb\.[a-z0-9_-]{138,212}")); //UniqueTokenRegex(@"hvb\.[a-z0-9_-]{138,212}", true));
 
+			//generateSampleSecret("microsoft-teams-webhook", Reggen(@"")); //MustCompile(@"https:\/\/[a-z0-9]+\.webhook\.office\.com\/webhookb2\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}@[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}\/IncomingWebhook\/[a-z0-9]{32}\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}"));
+			//generateSampleSecret("sidekiq-sensitive-url", Reggen(@"")); //MustCompile(@"(?i)\b(http(?:s??):\/\/)([a-f0-9]{8}:[a-f0-9]{8})@(?:gems.contribsys.com|enterprise.contribsys.com)(?:[\/|\#|\?|:]|$)"));
 
 			/*
 						generateSampleSecret("adafruit-api-key", SemiGenericRegex(new string[] { "adafruit" }, () => AlphaNumericExtendedShort(32, true)));
@@ -216,19 +243,20 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			*/
 
 
-			return samples.ToString();
+			return sb.ToString();
 		}
 
 		static void generateSampleSecret(string rule, params string[] secrets)
 		{
 			foreach (var secret in secrets)
 			{
-				samples.AppendLine($"[InlineData(\"{rule}\", @\"{secret}\")]");
+				//samples.AppendLine($"[InlineData(\"{rule}\", @\"{secret}\")]");
+				sb.AppendLine(_formatter(rule, secret));
 			}
 		}
 		static void generateSampleSecret(string rule, string key, string secret)
 		{
-			samples.AppendLine($"[InlineData(\"{rule}\", @\"{key} = {secret}\")]");
+			sb.AppendLine($"[InlineData(\"{rule}\", @\"{key} = {secret}\")]");
 		}
 
 
@@ -291,7 +319,7 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			sb.Append(IdentifierSuffix);
 		}
 
-		public static string Numeric(int size, bool caseInsensitive)
+		public static string Numeric(int size, bool caseInsensitive = false)
 		{
 			// if (!secret) return $"[0-9]{size}";
 			return Reggen(values0_9, size, caseInsensitive);
@@ -309,7 +337,7 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			return Reggen(valuesa_z + values0_9, size, caseInsensitive);
 		}
 
-		public static string AlphaNumericExtendedShort(int size, bool caseInsensitive)
+		public static string AlphaNumericExtendedShort(int size, bool caseInsensitive = false)
 		{
 			// if (!secret) return $"[a-z0-9_-]{size}";
 			return Reggen(valuesa_z + values0_9 + "_-", size, caseInsensitive);
@@ -436,7 +464,8 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 
 	static class RegexGenerator
 	{
-		public static StringBuilder regexes = new StringBuilder();
+		public static StringBuilder sb = new StringBuilder();
+		private static Func<string, string, string> _formatter = (k, v) => $"{k} : {v}";
 
 		public struct SecretRegex
 		{
@@ -448,7 +477,8 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 				Rule = rule;
 				Regex = regex;
 
-				regexes.AppendLine($"res.Add(new SecretRegex(\"{rule}\", @\"{regex.ToString().Replace("\"", "\"\"").Replace(@"\""""", @"""""")}\"));");
+				//regexes.AppendLine($"res.Add(new SecretRegex(\"{rule}\", @\"{regex.ToString().Replace("\"", "\"\"").Replace(@"\""""", @"""""")}\"));");
+				sb.AppendLine(_formatter(rule, regex.ToString().Replace("\"", "\"\"").Replace(@"\""""", @"""""")));
 			}
 		}
 
@@ -472,8 +502,10 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 		private const string SecretPrefix = @"(?:'|\""|\s|=|\x60){0,5}(";
 		private const string SecretSuffix = @")(?:['|\""|\n|\r|\s|\x60|;]|$)";
 
-		internal static string GenerateSecretRules()
+		internal static string Generate(Func<string, string, string>? formatter = null)
 		{
+			sb = new StringBuilder();
+			_formatter = formatter ?? ((k, v) => $"res.Add(new SecretRegex(\"{k}\", @\"{v}\"));");
 			var res = new List<SecretRegex>();
 
 			res.Add(new SecretRegex("adobe-client-secret", UniqueTokenRegex("(p8e-)(?i)[a-z0-9]{32}", true)));
@@ -526,7 +558,6 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			res.Add(new SecretRegex("shopify-access-token", MustCompile(@"shpat_[a-fA-F0-9]{32}")));
 			res.Add(new SecretRegex("shopify-custom-access-token", MustCompile(@"shpca_[a-fA-F0-9]{32}")));
 			res.Add(new SecretRegex("shopify-private-app-access-token", MustCompile(@"shppa_[a-fA-F0-9]{32}")));
-			res.Add(new SecretRegex("sidekiq-sensitive-url", MustCompile(@"(?i)\b(http(?:s??):\/\/)([a-f0-9]{8}:[a-f0-9]{8})@(?:gems.contribsys.com|enterprise.contribsys.com)(?:[\/|\#|\?|:]|$)")));
 			res.Add(new SecretRegex("slack-bot-token", MustCompile(@"(xoxb-[0-9]{10,13}\-[0-9]{10,13}[a-zA-Z0-9-]*)")));
 			res.Add(new SecretRegex("slack-user-token", MustCompile(@"(xox[pe](?:-[0-9]{10,13}){3}-[a-zA-Z0-9-]{28,34})")));
 			res.Add(new SecretRegex("slack-app-token", MustCompile(@"(?i)(xapp-\d-[A-Z0-9]+-\d+-[a-z0-9]+)")));
@@ -539,16 +570,16 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 			res.Add(new SecretRegex("square-access-token", UniqueTokenRegex(@"sq0atp-[0-9A-Za-z\-_]{22}", true)));
 			res.Add(new SecretRegex("square-secret", UniqueTokenRegex(@"sq0csp-[0-9A-Za-z\-_]{43}", true)));
 			res.Add(new SecretRegex("stripe-access-token", MustCompile(@"(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}")));
-			res.Add(new SecretRegex("microsoft-teams-webhook", MustCompile(@"https:\/\/[a-z0-9]+\.webhook\.office\.com\/webhookb2\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}@[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}\/IncomingWebhook\/[a-z0-9]{32}\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}")));
 			res.Add(new SecretRegex("telegram-bot-api-token", MustCompile(@"(?i)(?:^|[^0-9])([0-9]{5,16}:A[a-zA-Z0-9_\-]{34})(?:$|[^a-zA-Z0-9_\-])")));
 			res.Add(new SecretRegex("twilio-api-key", MustCompile(@"SK[0-9a-fA-F]{32}")));
 			res.Add(new SecretRegex("vault-service-token", UniqueTokenRegex(@"hvs\.[a-z0-9_-]{90,100}", true)));
 			res.Add(new SecretRegex("vault-batch-token", UniqueTokenRegex(@"hvb\.[a-z0-9_-]{138,212}", true)));
 
+			// res.Add(new SecretRegex("jwt-base64", MustCompile(@"\bZXlK(?:(aGJHY2lPaU)|(aGNIVWlPaU)|(aGNIWWlPaU)|(aGRXUWlPaU)|(aU5qUWlP)|(amNtbDBJanBi)|(amRIa2lPaU)|(bGNHc2lPbn)|(bGJtTWlPaU)|(cWEzVWlPaU)|(cWQyc2lPb)|(cGMzTWlPaU)|(cGRpSTZJ)|(cmFXUWlP)|(clpYbGZiM0J6SWpwY)|(cmRIa2lPaUp)|(dWIyNWpaU0k2)|(d01tTWlP)|(d01uTWlPaU)|(d2NIUWlPaU)|(emRXSWlPaU)|(emRuUWlP)|(MFlXY2lPaU)|(MGVYQWlPaUp)|(MWNtd2l)|(MWMyVWlPaUp)|(MlpYSWlPaU)|(MlpYSnphVzl1SWpv)|(NElqb2)|(NE5XTWlP)|(NE5YUWlPaU)|(NE5YUWpVekkxTmlJNkl)|(NE5YVWlPaU)|(NmFYQWlPaU))[a-zA-Z0-9\/_+\-\r\n]{40,}={0,2}")));
+			// res.Add(new SecretRegex("microsoft-teams-webhook", MustCompile(@"https:\/\/[a-z0-9]+\.webhook\.office\.com\/webhookb2\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}@[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}\/IncomingWebhook\/[a-z0-9]{32}\/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}")));
+			// res.Add(new SecretRegex("sidekiq-sensitive-url", MustCompile(@"(?i)\b(http(?:s??):\/\/)([a-f0-9]{8}:[a-f0-9]{8})@(?:gems.contribsys.com|enterprise.contribsys.com)(?:[\/|\#|\?|:]|$)")));
 /*
 			//-------------------------
-
-			res.Add(new SecretRegex("jwt-base64", MustCompile(@"\bZXlK(?:(aGJHY2lPaU)|(aGNIVWlPaU)|(aGNIWWlPaU)|(aGRXUWlPaU)|(aU5qUWlP)|(amNtbDBJanBi)|(amRIa2lPaU)|(bGNHc2lPbn)|(bGJtTWlPaU)|(cWEzVWlPaU)|(cWQyc2lPb)|(cGMzTWlPaU)|(cGRpSTZJ)|(cmFXUWlP)|(clpYbGZiM0J6SWpwY)|(cmRIa2lPaUp)|(dWIyNWpaU0k2)|(d01tTWlP)|(d01uTWlPaU)|(d2NIUWlPaU)|(emRXSWlPaU)|(emRuUWlP)|(MFlXY2lPaU)|(MGVYQWlPaUp)|(MWNtd2l)|(MWMyVWlPaUp)|(MlpYSWlPaU)|(MlpYSnphVzl1SWpv)|(NElqb2)|(NE5XTWlP)|(NE5YUWlPaU)|(NE5YUWpVekkxTmlJNkl)|(NE5YVWlPaU)|(NmFYQWlPaU))[a-zA-Z0-9\/_+\-\r\n]{40,}={0,2}")));
 
 			res.Add(new SecretRegex("generic-api-key", SemiGenericRegex(new string[] { "key", "api", "token", "secret", "client", "passwd", "password", "auth", "access" }, @"[0-9a-z\-_.=]{10,150}", true)));
 
@@ -638,7 +669,7 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 
 			//-------------------------
 */
-			return regexes.ToString();
+			return sb.ToString();
 		}
 
 		public static Regex MustCompile(string secretRegex)
