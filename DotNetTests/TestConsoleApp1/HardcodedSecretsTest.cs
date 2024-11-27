@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NET5_0_OR_GREATER
+using System;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
@@ -9,6 +10,9 @@ using static TestconsoleApp1.RegexGenerator;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Runtime.Serialization;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 {
@@ -768,3 +772,4 @@ namespace TestconsoleApp1 // Note: actual namespace depends on the project name.
 	}
 
 }
+#endif
